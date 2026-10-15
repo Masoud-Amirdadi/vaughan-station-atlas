@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+scripts/cache/
+*.zip
+preview.png
+.DS_Store
+Thumbs.db
