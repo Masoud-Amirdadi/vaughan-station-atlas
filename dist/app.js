@@ -100,7 +100,7 @@
     const fonts={family:'Inter, Segoe UI, Arial, sans-serif',size:10};
     const scales={x:{grid:{display:false},ticks:{font:fonts,maxRotation:35,autoSkip:false},border:{display:false}},y:{beginAtZero:true,grid:{color:'#edf0ed'},ticks:{font:fonts},border:{display:false}}};
     const legend={display:true,position:'bottom',align:'start',labels:{boxWidth:7,boxHeight:7,usePointStyle:true,pointStyle:'rectRounded',padding:13,font:{size:10},color:'#75838b'}};
-    drawChart('response-chart','bar',{labels,datasets:[['Average','avg','#355d78'],['Median','median','#a5bbc4'],['90th percentile','p90','#bf8659']].map(([label,key,color])=>({label,data:rows.map(r=>r[key]),backgroundColor:color,borderRadius:2,maxBarThickness:25}))},{scales,plugins:{legend,tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fixed(c.raw)} min`}}}});
+    drawChart('response-chart','bar',{labels,datasets:[['Average','avg','#355d78'],['Median','median','#a5bbc4'],['90th percentile','p90','#bf8659']].map(([label,key,color])=>({label,data:rows.map(r=>r[key]),backgroundColor:color,borderRadius:2,maxBarThickness:25})).concat([4,6].map((minutes,i)=>({type:'line',label:`${minutes}-minute threshold`,data:rows.map(()=>minutes),borderColor:['#547b67','#b65c51'][i],borderDash:[5,4],borderWidth:1.5,pointRadius:rows.length===1?4:0,fill:false,order:-1})))},{scales,plugins:{legend,tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fixed(c.raw)} min`}}}});
     drawChart('idle-chart','bar',{labels,datasets:[{label:'Idle capacity',data:rows.map(r=>r.idle_pct*100),backgroundColor:'#60836e',borderRadius:2,maxBarThickness:40},{label:'Occupied capacity',data:rows.map(r=>(1-r.idle_pct)*100),backgroundColor:'#caa37c',maxBarThickness:40}]},{scales:{x:{...scales.x,stacked:true},y:{...scales.y,stacked:true,max:100,ticks:{font:fonts,callback:v=>`${v}%`}}},plugins:{legend,tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fixed(c.raw)}%`}}}});
   }
   function updateComparison() {
@@ -108,6 +108,17 @@
       const s=annual(String(st.id),state.year);
       return `<tr class="${state.station===String(st.id)?'selected':''}" data-station="${st.id}"><td><button data-station="${st.id}"><span class="table-dot"></span>7-${st.id}</button></td><td>${num(s.incidents)}</td><td>${fixed(s.avg)} min</td><td>${pct(s.idle_pct)}</td></tr>`;
     }).join('');
+  }
+  function updateThresholds() {
+    const summarize=window.VFRS_THRESHOLDS.summarize;
+    const total=summarize(D.incidents,state.station,state.year);
+    $('threshold-summary').innerHTML=[[4,total.within4,total.rate4],[6,total.within6,total.rate6]].map(([minutes,count,rate])=>`<div><small>Within ${minutes} minutes</small><strong>${rate===null?'—':pct(rate)}</strong><span>${num(count)} of ${num(total.total)} unit responses</span></div>`).join('');
+    const groups=state.station==='all'?D.stations.map(st=>({label:st.label,station:String(st.id),year:state.year})):state.year==='all'?['2023','2024','2025'].map(year=>({label:year,station:state.station,year})):[{label:state.year,station:state.station,year:state.year}];
+    const rows=groups.map(g=>({...g,...summarize(D.incidents,g.station,g.year)}));
+    const labels=['Within 4 min','Over 4 to 6 min','Over 6 min'];
+    const keys=['within4','between4and6','above6'];
+    drawChart('threshold-chart','bar',{labels:rows.map(r=>r.label),datasets:keys.map((key,i)=>({label:labels[i],data:rows.map(r=>r.total?r[key]/r.total*100:null),backgroundColor:['#547b67','#c4a16c','#b65c51'][i],maxBarThickness:40}))},{scales:{x:{stacked:true,grid:{display:false},ticks:{font:{size:10},autoSkip:false},border:{display:false}},y:{stacked:true,min:0,max:100,ticks:{callback:v=>`${v}%`,font:{size:10}},grid:{color:'#edf0ed'},border:{display:false}}},plugins:{tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fixed(c.raw)}% (${num(rows[c.dataIndex][keys[c.datasetIndex]])} responses)`}}}});
+    $('threshold-scope').textContent=`${selectedStation()?`Station ${selectedStation().label}`:'All mapped stations'} · ${yearLabel(state.year)} · ${num(total.total)} responses. Bands are mutually exclusive; the ≤6-minute summary includes the ≤4-minute group.`;
   }
   function stationPopup(st) {
     const s=annual(String(st.id),state.year);
@@ -156,7 +167,7 @@
   }
   function render({locate=false}={}) {
     $('panel-scroll').scrollTop=0;
-    updateControls();updateMetrics();updateShare();updateTimeCharts();updateComparison();updateStationMarkers(locate);
+    updateControls();updateMetrics();updateShare();updateTimeCharts();updateThresholds();updateComparison();updateStationMarkers(locate);
     const token=++renderToken;
     requestAnimationFrame(()=>{if(token===renderToken)updateIncidents();});
   }
@@ -203,7 +214,7 @@
     L.control.zoom({position:'topright'}).addTo(map);
     fitMap();
   }
-  function fitMap(){map.fitBounds(boundaryLayer?boundaryLayer.getBounds():L.latLngBounds(D.stations.map(s=>[s.lat,s.lng])),{paddingTopLeft:[45,150],paddingBottomRight:[45,90],maxZoom:12});}
+  function fitMap(){map.fitBounds(boundaryLayer?boundaryLayer.getBounds():L.latLngBounds(D.stations.map(s=>[s.lat,s.lng])),{paddingTopLeft:[45,75],paddingBottomRight:[45,90],maxZoom:12});}
   D.stations.forEach(st=>$('station-select').insertAdjacentHTML('beforeend',`<option value="${st.id}">Station ${st.label}</option>`));
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
   $('station-select').addEventListener('change',e=>{state.station=e.target.value;state.view=state.station==='all'?(state.year==='all'?'overall':'year'):'station';render({locate:state.station!=='all'});});
@@ -214,6 +225,14 @@
   $('show-boundary').addEventListener('change',e=>{if(boundaryLayer){if(e.target.checked)boundaryLayer.addTo(map);else map.removeLayer(boundaryLayer);}});
   $('incident-status').addEventListener('change',e=>{state.status=e.target.value;updateIncidents();});
   $('fit-map').addEventListener('click',fitMap);
+  for(const [id,className,label] of [['toggle-header','header-hidden','header'],['toggle-map-tools','map-tools-hidden','map controls'],['toggle-panel','panel-hidden','analytics']]) {
+    $(id).addEventListener('click',()=>{
+      const hidden=document.querySelector('.workspace').classList.toggle(className);
+      $(id).textContent=`${hidden?'Show':'Hide'} ${label}`;
+      $(id).setAttribute('aria-expanded',String(!hidden));
+      requestAnimationFrame(()=>{map.invalidateSize();Object.values(charts).forEach(chart=>chart.resize());});
+    });
+  }
   $('comparison-body').addEventListener('click',e=>{const row=e.target.closest('[data-station]');if(row)selectStation(row.dataset.station);});
   $('download-summary').addEventListener('click',()=>downloadCsv(`VFRS_station_comparison_${state.year}.csv`,['Period','Station','Estimated units','Incidents non-cancelled','Unit responses non-cancelled','Cancelled unit responses','Average response minutes','Average occupied minutes','Estimated idle percent'],D.stations.map(st=>{const s=annual(String(st.id));return[yearLabel(state.year),st.label,st.units,s.incidents,s.responses,s.cancelled,s.avg,s.occupied,s.idle_pct*100];})));
   $('download-unmatched').addEventListener('click',()=>downloadCsv(`VFRS_unmatched_incidents_${state.station}_${state.year}.csv`,['Incident ID','Date','Address','Reason'],currentIncidents.filter(i=>!isLocated(i)).map(i=>[i.id,i.date,D.addresses[i.address].address,i.unlocatedReason||D.addresses[i.address].match])));
