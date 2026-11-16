@@ -12,6 +12,8 @@ Run `python -m http.server 8000 --bind 127.0.0.1 --directory dist` from this fol
 
 Upload the contents of the supplied GitHub ZIP to a repository. Under **Settings → Pages**, choose **GitHub Actions**. The included workflow publishes `dist/` when changes are pushed to `main`, or can be run manually.
 
-The site includes the incident details and downloads visible in the atlas. Operating-unit counts and idle capacity are estimates, as described in its **About data** panel.
+Incident popups show annual counts by broad category in approximate 500-metre areas. The distributed data excludes incident IDs, exact addresses, dates, times, detailed call descriptions, unit identifiers and individual durations. The unlocated download contains only year/category totals. Original source CSVs remain outside the distribution. Generalization reduces disclosure but does not guarantee anonymity. Operating-unit counts and idle capacity are estimates, as described in its **About data** panel.
 
 Map: © OpenStreetMap contributors. Municipal boundary: York Region. Built with Leaflet and Chart.js; their licences are included in `dist/vendor/`.
+
+Rebuilding with `python scripts/build_data.py` automatically applies `scripts/privacy.py` before writing the distribution. Do not publish source CSVs or the local geocoding cache.

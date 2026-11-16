@@ -22,7 +22,7 @@
   const annual = (station=state.station, year=state.year) => scope(String(station),String(year)).Annual[0];
   const selectedStation = () => D.stations.find(s => String(s.id) === state.station);
   const selectedResponses = incident => incident.responses.filter(r => state.station === 'all' || String(r[1]) === state.station);
-  const isLocated = incident => !incident.addressConflict && D.addresses[incident.address].lat !== null;
+  const isLocated = incident => D.addresses[incident.address].lat !== null;
   function filterIncidents() {
     return D.incidents.filter(i => {
       if (state.year !== 'all' && String(i.year) !== state.year) return false;
@@ -143,26 +143,29 @@
       markers[station.id].openPopup();
     }
   }
+  function categoryRows(incidents) {
+    const counts=new Map();
+    incidents.forEach(i=>{const key=`${i.year}|${i.category}`;counts.set(key,(counts.get(key)||0)+1);});
+    return [...counts].map(([key,count])=>[...key.split('|'),count]).sort((a,b)=>b[0].localeCompare(a[0])||b[2]-a[2]||a[1].localeCompare(b[1]));
+  }
   function incidentPopup(group) {
-    const address=D.addresses[group.address];
-    const list=group.incidents.slice().sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
-    const method=(address.match.startsWith('official_address_cluster')?'Official address-point cluster (within 50 m)':'Official York Region address point')+(address.match.includes('unique_direction_completion')?' · unique directional completion':'');
-    return `<div class="incident-popup"><h4>${esc(address.address)}</h4><p>${num(list.length)} unique incident${list.length===1?'':'s'} in this selection<br><small>${method}</small></p>${list.slice(0,12).map(i=>`<div class="incident-entry"><strong>${esc(i.id)}</strong> <small>${esc(i.date)} ${esc(i.time)}</small><p>${esc(i.type)}</p>${selectedResponses(i).map(r=>`<div class="incident-unit">${esc(r[0])}${r[1]?` · Station 7-${r[1]}`:' · Station unmapped'} · ${r[2]?'Cancelled':`${fixed(r[3]/60)} min response`} · ${fixed(r[4]/60)} min occupied</div>`).join('')}</div>`).join('')}${list.length>12?`<p>Showing the latest 12 of ${num(list.length)} incidents at this address.</p>`:''}</div>`;
+    const rows=categoryRows(group.incidents);
+    return `<div class="incident-popup"><span class="popup-eyebrow">AREA SUMMARY</span><h4>Incident activity</h4><div class="incident-total"><strong>${num(group.incidents.length)}</strong><span>incidents in this selection</span></div><p class="area-note">Approximate 500-metre area · ${yearLabel(state.year)}</p><table class="category-table"><caption class="sr-only">Incidents by year and broad category</caption><thead><tr><th>Year</th><th>Category</th><th>Count</th></tr></thead><tbody>${rows.map(([year,category,count])=>`<tr><td>${esc(year)}</td><td><span class="category-chip">${esc(category)}</span></td><td>${num(count)}</td></tr>`).join('')}</tbody></table><p class="privacy-note">Locations are generalized. Individual incident details are not displayed.</p></div>`;
   }
   function updateIncidents() {
     currentIncidents=filterIncidents();const located=currentIncidents.filter(isLocated);const missing=currentIncidents.length-located.length;
     $('coverage-title').textContent=`${pct(currentIncidents.length?located.length/currentIncidents.length:0)} of selected incidents located`;
-    $('coverage-detail').textContent=`${num(located.length)} matched · ${num(missing)} unmatched or incomplete. Addresses matched locally to official points.`;
+    $('coverage-detail').textContent=`${num(located.length)} matched · ${num(missing)} unmatched or incomplete. Shown in approximate 500-metre areas.`;
     $('map-count').textContent=`${num(located.length)} located / ${num(currentIncidents.length)} selected incidents`;
     incidentLayer.clearLayers();
     if(!state.showIncidents)return;
     const groups=new Map();
     located.forEach(i=>{let g=groups.get(i.address);if(!g){g={address:i.address,incidents:[]};groups.set(i.address,g);}g.incidents.push(i);});
-    // Canvas rendering keeps thousands of address points responsive.
+    // Canvas renders generalized area summaries without property locations.
     groups.forEach(group=>{
       const a=D.addresses[group.address];
       const marker=L.circleMarker([a.lat,a.lng],{radius:Math.min(11,2.4+Math.log2(group.incidents.length+1)*1.1),color:'#467d9d',weight:.55,fillColor:'#739ab3',fillOpacity:.38,pane:'incidentPane'});
-      marker.bindPopup(()=>incidentPopup(group),{maxWidth:365,maxHeight:330});marker.addTo(incidentLayer);
+      marker.bindPopup(()=>incidentPopup(group),{className:'area-popup',minWidth:280,maxWidth:340,maxHeight:380});marker.addTo(incidentLayer);
     });
   }
   function render({locate=false}={}) {
@@ -236,8 +239,8 @@
   }
   $('comparison-body').addEventListener('click',e=>{const row=e.target.closest('[data-station]');if(row)selectStation(row.dataset.station);});
   $('download-summary').addEventListener('click',()=>downloadCsv(`VFRS_station_comparison_${state.year}.csv`,['Period','Station','Estimated units','Incidents non-cancelled','Unit responses non-cancelled','Cancelled unit responses','Average response minutes','Average occupied minutes','Estimated idle percent'],D.stations.map(st=>{const s=annual(String(st.id));return[yearLabel(state.year),st.label,st.units,s.incidents,s.responses,s.cancelled,s.avg,s.occupied,s.idle_pct*100];})));
-  $('download-unmatched').addEventListener('click',()=>downloadCsv(`VFRS_unmatched_incidents_${state.station}_${state.year}.csv`,['Incident ID','Date','Address','Reason'],currentIncidents.filter(i=>!isLocated(i)).map(i=>[i.id,i.date,D.addresses[i.address].address,i.unlocatedReason||D.addresses[i.address].match])));
-  $('about-content').innerHTML=`<p><b>Incident counts.</b> Overall totals include all ${num(D.incidents.length)} unique source incidents. Station response metrics exclude cancelled responses and vehicles without a station mapping. Station incident counts overlap when multiple stations attend.</p><p><b>Occupied and idle.</b> Non-cancelled responses are occupied from notification to clear time; cancelled responses from notification to cancellation. Overlapping assignments for the same unit are merged. Capacity is estimated at two units for Stations 1, 2, 3 and 5 and one for all other stations. Activity above that estimate is flagged and idle capacity is capped at zero.</p><p><b>Time and reporting.</b> Incident statistics use alarm date/time. Occupancy hours follow the inferred actual intervals. Daytime is 07:00–19:00. Seasons are winter Dec–Feb, spring Mar–May, summer Jun–Aug and autumn Sep–Nov. Times crossing midnight assume the next day; time-only fields cannot establish multi-day event duration.</p><p><b>Incident locations.</b> Addresses were matched locally to <a href="${esc(D.sources.addresses.replace('/query',''))}" target="_blank" rel="noopener">official York Region address points</a> downloaded ${esc(D.sources.addressReferenceDate)}. No incident addresses were submitted to a geocoding service. Multiple matching reference points are accepted only within 50 metres; otherwise locations remain unmatched. Current address points may differ from historical incident locations.</p><p><b>Map filters.</b> The incident-status selector filters map points and matching coverage only. Charts and KPIs retain their stated non-cancelled and occupied-capacity definitions. Unmapped incidents remain in overall incident totals and the incident map, but not station metrics.</p><p><b>Station locations.</b> Coordinates were supplied by the user. Unit-code assignment indicates nominal station affiliation, not confirmed dispatch location. Estimated idle capacity does not account for training, inspections or maintenance. Basemap tiles are the only live map requests.</p>`;
+  $('download-unmatched').addEventListener('click',()=>downloadCsv(`VFRS_unlocated_summary_${state.station}_${state.year}.csv`,['Year','Category','Incident count'],categoryRows(currentIncidents.filter(i=>!isLocated(i)))));
+  $('about-content').innerHTML=`<p><b>Incident counts.</b> Overall totals include all ${num(D.incidents.length)} unique source incidents. Station response metrics exclude cancelled responses and vehicles without a station mapping. Station incident counts overlap when multiple stations attend.</p><p><b>Occupied and idle.</b> Non-cancelled responses are occupied from notification to clear time; cancelled responses from notification to cancellation. Overlapping assignments for the same unit are merged. Capacity is estimated at two units for Stations 1, 2, 3 and 5 and one for all other stations. Activity above that estimate is flagged and idle capacity is capped at zero.</p><p><b>Time and reporting.</b> Aggregate statistics are calculated from source alarm dates and times; these are not included in the incident layer. Occupancy hours follow the inferred actual intervals. Daytime is 07:00–19:00. Seasons are winter Dec–Feb, spring Mar–May, summer Jun–Aug and autumn Sep–Nov. Times crossing midnight assume the next day; time-only fields cannot establish multi-day event duration.</p><p><b>Presentation privacy.</b> Incident locations are grouped into approximate 500-metre grid areas. Popups and unlocated downloads show broad categories and reporting years only. Incident IDs, street addresses, exact dates and times, detailed descriptions, unit identifiers and individual response durations are excluded from the distributed incident data. These generalized summaries reduce detail; they are not a guarantee of anonymity.</p><p><b>Incident locations.</b> Addresses were matched locally to <a href="${esc(D.sources.addresses.replace('/query',''))}" target="_blank" rel="noopener">official York Region address points</a> downloaded ${esc(D.sources.addressReferenceDate)}. No incident addresses were submitted to a geocoding service. Multiple matching reference points are accepted only within 50 metres; otherwise locations remain unmatched. Current address points may differ from historical incident locations.</p><p><b>Map filters.</b> The incident-status selector filters map points and matching coverage only. Charts and KPIs retain their stated non-cancelled and occupied-capacity definitions. Unmapped incidents remain in overall incident totals and the incident map, but not station metrics.</p><p><b>Station locations.</b> Coordinates were supplied by the user. Unit-code assignment indicates nominal station affiliation, not confirmed dispatch location. Estimated idle capacity does not account for training, inspections or maintenance. Basemap tiles are the only live map requests.</p>`;
   $('about-button').addEventListener('click',()=>$('about-dialog').showModal());
   $('close-about').addEventListener('click',()=>$('about-dialog').close());
   $('about-dialog').addEventListener('click',e=>{if(e.target===$('about-dialog'))$('about-dialog').close();});

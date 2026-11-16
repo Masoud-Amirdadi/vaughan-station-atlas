@@ -1,6 +1,7 @@
 'use strict';
 window.VFRS_THRESHOLDS = {
   summarize(incidents, station='all', year='all') {
+    if (incidents === window.VFRS_DATA?.incidents && window.VFRS_DATA.thresholds) return window.VFRS_DATA.thresholds[`${station}|${year}`];
     let total=0,within4=0,within6=0;
     for(const incident of incidents) {
       if(year!=='all'&&String(incident.year)!==String(year))continue;

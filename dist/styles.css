@@ -55,3 +55,20 @@ th{font-size:10px}
 @media(max-width:760px){.layout-switcher{top:12px;right:53px}.layout-switcher button{font-size:10px;padding:6px 8px}.workspace.panel-hidden .map-brand .view-tabs{width:100%}.workspace.panel-hidden .map-area{height:calc(100dvh - 115px);min-height:370px}.workspace.panel-hidden.header-hidden .map-area{height:100dvh}}
 
 @media(min-width:761px){.map-brand{grid-row:1}.map-area,.insight-panel{grid-row:2}}
+
+/* Presentation refinements: clear hierarchy and compact area summaries. */
+:root{--muted:#61727c}
+.header-identity{gap:13px}.map-brand .live-tag{margin-left:auto;padding:7px 11px;border-radius:20px}
+.insight-panel{background:#fbfcfc}.panel-top,.filter-row{background:#fff}
+.chart-card,.detail-card,.comparison-card{background:#fff;border-radius:12px;box-shadow:0 2px 8px #1b2c3803}
+.kpi{background:#fff;border-radius:11px;border-top:3px solid #355d78}.kpi:nth-child(4){border-top-color:#547b67}
+.kpi p{line-height:1.5}.card-heading p{line-height:1.6}
+.area-popup .leaflet-popup-content{margin:21px 22px}.incident-popup{max-height:340px;line-height:1.6}
+.incident-popup h4{font-size:21px;letter-spacing:-.5px;margin:3px 0 12px}
+.incident-total{display:flex;align-items:baseline;gap:9px}.incident-total strong{font-size:30px;font-weight:650;line-height:1.2;color:#355d78}.incident-total span{font-size:11px;color:#61727c}
+.incident-popup .area-note{font-size:11px;color:#61727c;margin:8px 0 14px}
+.category-table th,.category-table td{text-align:left;padding:8px 4px}.category-table th:last-child,.category-table td:last-child{text-align:right}
+.category-table tbody tr{cursor:default}.category-table td:last-child{font-weight:650;font-variant-numeric:tabular-nums}
+.category-chip{display:inline-block;background:#edf3f6;color:#355d78;padding:2px 8px;border-radius:5px;font-size:11px}
+.incident-popup .privacy-note{font-size:10px;color:#61727c;margin:13px 0 0;padding-top:11px;border-top:1px solid #e3e8e8}
+@media(max-width:760px){.layer-control select{display:block}.layer-control{bottom:65px}.map-area{min-height:460px}.legend{font-size:9px}.map-brand .live-tag{display:inline-block}}
