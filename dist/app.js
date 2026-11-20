@@ -41,14 +41,17 @@
     render({locate:view==='station'});
   }
   function selectStation(id, locate=true) {
-    state.station=String(id);state.view='station';render({locate});
+    state.station=String(id);if(state.view!=='trucks')state.view='station';render({locate});
   }
   function updateControls() {
     $('station-select').value=state.station;$('year-select').value=state.year;
     document.querySelectorAll('[data-view]').forEach(b => {const on=b.dataset.view===state.view;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));});
     const station=selectedStation();
+    const trucksView=state.view==='trucks';
+    $('truck-view-content').hidden=!trucksView;
+    $('panel-scroll').classList.toggle('trucks-active',trucksView);
     $('breakdown-select').querySelector('option[value="Annual"]').textContent=state.station==='all'&&state.year!=='all'?'By station':state.year!=='all'?'Selected year':'By year';
-    $('view-title').textContent=station?`Station ${station.label}`:state.year!=='all'?`${state.year} in focus`:'Analytics';
+    $('view-title').textContent=state.view==='trucks'?'Trucks':station?`Station ${station.label}`:state.year!=='all'?`${state.year} in focus`:'Analytics';
     $('selection-context').textContent=`${station?`Station ${station.label}`:'All 10 stations'} · ${yearLabel(state.year)}`;
   }
   function updateMetrics() {
@@ -122,7 +125,7 @@
   }
   function stationPopup(st) {
     const s=annual(String(st.id),state.year);
-    return `<div class="popup-eyebrow">VAUGHAN FIRE SERVICES</div><div class="popup-title">Station ${st.label}</div><div class="popup-address">${esc(st.address)}</div><div class="popup-metrics"><div class="popup-metric"><small>Incidents responded</small><b>${num(s.incidents)}</b></div><div class="popup-metric"><small>Estimated operating units</small><b>${st.units}</b></div><div class="popup-metric"><small>Average response</small><b>${fixed(s.avg)} <em>min</em></b></div><div class="popup-metric"><small>Average occupied</small><b>${fixed(s.occupied)} <em>min</em></b></div></div><div class="popup-idle">Estimated idle capacity <b>${pct(s.idle_pct)}</b><div class="popup-track"><i style="width:${s.idle_pct*100}%"></i></div></div><div class="popup-scope">${yearLabel(state.year)} · Non-cancelled response statistics<br>Cancelled assignments are included in occupancy.</div>`;
+    return `<div class="popup-eyebrow">VAUGHAN FIRE SERVICES</div><div class="popup-title">Station ${st.label}</div><div class="popup-address">${esc(st.address)}</div><div class="popup-metrics"><div class="popup-metric"><small>Incidents responded</small><b>${num(s.incidents)}</b></div><div class="popup-metric"><small>Estimated operating units</small><b>${st.units}</b></div><div class="popup-metric"><small>Average response</small><b>${fixed(s.avg)} <em>min</em></b></div><div class="popup-metric"><small>Average occupied</small><b>${fixed(s.occupied)} <em>min</em></b></div></div><div class="popup-idle">Estimated idle capacity <b>${pct(s.idle_pct)}</b><div class="popup-track"><i style="width:${s.idle_pct*100}%"></i></div></div><div class="popup-scope">${yearLabel(state.year)} · Non-cancelled response statistics<br>Cancelled assignments are included in occupancy.<br><b>Recorded trucks:</b> ${window.VFRS_TRUCKS?.records.filter(r=>r.station===st.id&&r.year===state.year).map(r=>esc(r.truck)).join(", ")||"None in selected year"}</div>`;
   }
   function updateStationMarkers(locate=false) {
     map.stop();
@@ -170,7 +173,7 @@
   }
   function render({locate=false}={}) {
     $('panel-scroll').scrollTop=0;
-    updateControls();updateMetrics();updateShare();updateTimeCharts();updateThresholds();updateComparison();updateStationMarkers(locate);
+    updateControls();updateMetrics();if(state.view==='trucks')window.VFRS_TRUCK_UI?.render(state);updateShare();updateTimeCharts();updateThresholds();updateComparison();updateStationMarkers(locate);
     const token=++renderToken;
     requestAnimationFrame(()=>{if(token===renderToken)updateIncidents();});
   }
@@ -221,8 +224,8 @@
   function fitMap(){map.fitBounds(boundaryLayer?boundaryLayer.getBounds():L.latLngBounds(D.stations.map(s=>[s.lat,s.lng])),{paddingTopLeft:[45,75],paddingBottomRight:[45,90],maxZoom:12});}
   D.stations.forEach(st=>$('station-select').insertAdjacentHTML('beforeend',`<option value="${st.id}">Station ${st.label}</option>`));
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
-  $('station-select').addEventListener('change',e=>{state.station=e.target.value;state.view=state.station==='all'?(state.year==='all'?'overall':'year'):'station';render({locate:state.station!=='all'});});
-  $('year-select').addEventListener('change',e=>{state.year=e.target.value;state.view=state.station==='all'?(state.year==='all'?'overall':'year'):'station';render();});
+  $('station-select').addEventListener('change',e=>{state.station=e.target.value;if(state.view!=='trucks')state.view=state.station==='all'?(state.year==='all'?'overall':'year'):'station';render({locate:state.station!=='all'});});
+  $('year-select').addEventListener('change',e=>{state.year=e.target.value;if(state.view!=='trucks')state.view=state.station==='all'?(state.year==='all'?'overall':'year'):'station';render();});
   $('breakdown-select').addEventListener('change',e=>{state.breakdown=e.target.value;updateTimeCharts();});
   $('map-metric').addEventListener('change',e=>{state.mapMetric=e.target.value;updateStationMarkers();});
   $('show-incidents').addEventListener('change',e=>{state.showIncidents=e.target.checked;updateIncidents();});
